@@ -1,0 +1,15 @@
+Debug
+Release
+.settings
+
+.cache
+CMakeFiles
+CMakeCache.txt
+Makefile
+build
+.vscode
+
+template-project
+template-project.bin
+template-project.hex
+template-project.map
