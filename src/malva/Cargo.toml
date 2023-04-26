@@ -1,0 +1,10 @@
+[package]
+name = "malva"
+version = "0.2.0"
+description = "Create and manage stm32 projects on vscode"
+edition = "2021"
+authors = ["Alejandro Gonzalvo <alejandrogonhid@gmail.com>"]
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
