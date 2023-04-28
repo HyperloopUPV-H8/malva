@@ -22,34 +22,37 @@ fn cli() -> Command {
         .subcommand(
             Command::new("build")
                 .about("Build the project into a binary/elf file")
-                .arg(arg!(base: [COMMIT]))
-                .arg(arg!(head: [COMMIT]))
                 .arg(arg!(path: [PATH]).last(true))
-                .arg(
-                    arg!(--color <WHEN>)
-                        .value_parser(["always", "auto", "never"])
+               .arg(
+                    arg!(-t --target <TARGET>)
+                        .value_parser(["nucleo", "board"])
                         .num_args(0..=1)
-                        .require_equals(true)
-                        .default_value("auto")
-                        .default_missing_value("always"),
+                        .default_value("nucleo")
+                        .default_missing_value("board"),
+                )
+                .arg(
+                    arg!(-p --profile <PROFILE>)
+                        .value_parser(["debug", "release"])
+                        .num_args(0..=1)
+                        .default_value("debug")
+                        .default_missing_value("release"),
+                )
+                .arg(
+                    arg!(-e --noeth <NOETH>)
+                        .value_parser(["true", "false"])
+                        .num_args(0..=1)
+                        .default_value("false")
+                        .default_missing_value("true"),  
                 ),
         )
         .subcommand(
             Command::new("flash")
                 .about("flash binary to target")
-                .arg(arg!(<REMOTE> "The remote to target"))
-                .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("debug")
                 .about("debug binary on target")
-                .arg_required_else_help(true)
-                .arg(arg!(<PATH> ... "Stuff to add").value_parser(clap::value_parser!(PathBuf))),
         )
-}
-
-fn push_args() -> Vec<clap::Arg> {
-    vec![arg!(-m --message <MESSAGE>)]
 }
 
 fn copy_dir(src: &str, dst: &Path) -> io::Result<Output> {
@@ -114,7 +117,7 @@ fn main() {
             find_and_replace("template-project", &project_name, project_path.as_path()).expect("Could not replace template project");
             
         }
-        Some(("diff", sub_matches)) => {
+        Some(("build", sub_matches)) => {
             let color = sub_matches
                 .get_one::<String>("color")
                 .map(|s| s.as_str())
