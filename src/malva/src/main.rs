@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::fmt::format;
+use std::io::Stdout;
 use std::path::PathBuf;
 use std::path::Path;
 use std::process::Child;
@@ -22,9 +24,9 @@ fn cli() -> Command {
         .subcommand(
             Command::new("build")
                 .about("Build the project into a binary/elf file")
-                .arg(arg!(path: [PATH]).last(true))
+                .arg(arg!(<PATH> "Path to CMakeLists.txt"))
                .arg(
-                    arg!(-t --target <TARGET>)
+                    arg!(-t --target [TARGET])
                         .value_parser(["nucleo", "board"])
                         .num_args(0..=1)
                         .default_value("nucleo")
@@ -79,6 +81,27 @@ fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child>
         .spawn()
 }
 
+fn cmake(cmake_path: &str) -> io::Result<Output> {
+    println!("Running cmake in {}", cmake_path);
+    process::Command::new("cmake")
+        .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabid.cmake"))
+        .arg("-S")
+        .arg(cmake_path)
+        .arg("-B")
+        .arg(format!("{cmake_path}/build"))
+        .output()
+}
+
+fn make(make_path: &str) -> io::Result<Output> {
+    println!("Running make in {}", make_path);
+    process::Command::new("make")
+        .arg("clean")
+        .arg("-j16")
+        .arg("-C")
+        .arg(format!("{make_path}/build"))
+        .arg("all")
+        .output()
+}
 // fn find_dir_and_change(dir: &str) -> io::Result<Output> {
 //     let find_child = process::Command::new("find") 
 //         .arg(".")
@@ -118,26 +141,15 @@ fn main() {
             
         }
         Some(("build", sub_matches)) => {
-            let color = sub_matches
-                .get_one::<String>("color")
-                .map(|s| s.as_str())
-                .expect("defaulted in clap");
+            let cmake_path = sub_matches.get_one::<String>("PATH").expect("required");
 
-            let mut base = sub_matches.get_one::<String>("base").map(|s| s.as_str());
-            let mut head = sub_matches.get_one::<String>("head").map(|s| s.as_str());
-            let mut path = sub_matches.get_one::<String>("path").map(|s| s.as_str());
-            if path.is_none() {
-                path = head;
-                head = None;
-                if path.is_none() {
-                    path = base;
-                    base = None;
-                }
-            }
-            let base = base.unwrap_or("stage");
-            let head = head.unwrap_or("worktree");
-            let path = path.unwrap_or("");
-            println!("Diffing {base}..{head} {path} (color={color})");
+            let target = sub_matches.try_get_one::<String>("TARGET");
+            let profile = sub_matches.try_get_one::<String>("PROFILE");
+            let noeth = sub_matches.try_get_one::<String>("NOETH");
+            
+            cmake(cmake_path.as_str()).expect("Could not run cmake");
+            make(cmake_path.as_str()).expect("Could not run make");
+            
         }
         Some(("push", sub_matches)) => {
             println!(
