@@ -1,9 +1,0 @@
-[submodule "malva_0.1-1_amd64/opt/hyperfw/template-project"]
-	path = malva_0.1-1_amd64/opt/hyperfw/template-project
-	url = git@github.com:HyperloopUPV-H8/template-project.git
-[submodule "opt/hyperfw/template-project"]
-	path = opt/hyperfw/template-project
-	url = git@github.com:HyperloopUPV-H8/template-project.git
-[submodule "opt/malva/template-project"]
-	path = opt/malva/template-project
-	url = git@github.com:HyperloopUPV-H8/template-project.git
