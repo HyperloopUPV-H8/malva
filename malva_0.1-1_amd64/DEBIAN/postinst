@@ -7,7 +7,7 @@ sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-n
 sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gdb /usr/local/bin/
 sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm /usr/local/bin/
 
-cat /opt/hyperfw/ascii.txt
+cat /opt/malva/ascii.txt
 TEXT="Welcome to Hyperloop UPV firmware team. Happy coding!"
 echo ${TEXT}
 echo ""
