@@ -84,7 +84,7 @@ fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child>
 fn cmake(cmake_path: &str) -> io::Result<Output> {
     println!("Running cmake in {}", cmake_path);
     process::Command::new("cmake")
-        .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabid.cmake"))
+        .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabi.cmake"))
         .arg("-S")
         .arg(cmake_path)
         .arg("-B")
