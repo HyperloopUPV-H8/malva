@@ -1,6 +1,4 @@
 use std::ffi::OsString;
-use std::fmt::format;
-use std::io::Stdout;
 use std::path::PathBuf;
 use std::path::Path;
 use std::process::Child;
@@ -26,25 +24,25 @@ fn cli() -> Command {
                 .about("Build the project into a binary/elf file")
                 .arg(arg!(<PATH> "Path to CMakeLists.txt"))
                .arg(
-                    arg!(-t --target [TARGET])
+                    arg!(-t --target <TARGET>)
                         .value_parser(["nucleo", "board"])
                         .num_args(0..=1)
+                        .require_equals(true)
                         .default_value("nucleo")
-                        .default_missing_value("board"),
                 )
                 .arg(
                     arg!(-p --profile <PROFILE>)
                         .value_parser(["debug", "release"])
                         .num_args(0..=1)
+                        .require_equals(true)
                         .default_value("debug")
-                        .default_missing_value("release"),
                 )
                 .arg(
-                    arg!(-e --noeth <NOETH>)
+                    arg!(-e --eth <NOETH>)
                         .value_parser(["true", "false"])
                         .num_args(0..=1)
-                        .default_value("false")
-                        .default_missing_value("true"),  
+                        .require_equals(true)
+                        .default_value("true")
                 ),
         )
         .subcommand(
@@ -81,27 +79,7 @@ fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child>
         .spawn()
 }
 
-fn cmake(cmake_path: &str) -> io::Result<Output> {
-    println!("Running cmake in {}", cmake_path);
-    process::Command::new("cmake")
-        .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabi.cmake"))
-        .arg("-S")
-        .arg(cmake_path)
-        .arg("-B")
-        .arg(format!("{cmake_path}/build"))
-        .output()
-}
 
-fn make(make_path: &str) -> io::Result<Output> {
-    println!("Running make in {}", make_path);
-    process::Command::new("make")
-        .arg("clean")
-        .arg("-j16")
-        .arg("-C")
-        .arg(format!("{make_path}/build"))
-        .arg("all")
-        .output()
-}
 // fn find_dir_and_change(dir: &str) -> io::Result<Output> {
 //     let find_child = process::Command::new("find") 
 //         .arg(".")
@@ -143,13 +121,66 @@ fn main() {
         Some(("build", sub_matches)) => {
             let cmake_path = sub_matches.get_one::<String>("PATH").expect("required");
 
-            let target = sub_matches.try_get_one::<String>("TARGET");
-            let profile = sub_matches.try_get_one::<String>("PROFILE");
-            let noeth = sub_matches.try_get_one::<String>("NOETH");
+            let target = sub_matches.get_one::<String>("target").map(|s| s.as_str()).expect("Defaulted in clap");
+            let profile = sub_matches.get_one::<String>("profile").map(|s| s.as_str()).expect("Defaulted in clap");
+            let eth = sub_matches.get_one::<String>("eth").map(|s| s.as_str()).expect("Defaulted in clap");
             
-            cmake(cmake_path.as_str()).expect("Could not run cmake");
-            make(cmake_path.as_str()).expect("Could not run make");
-            
+            let t: &str;
+            if target == "nucleo" {
+                t = "NUCLEO";
+            } else {
+                t = "BOARD";
+            }
+
+            let p: &str;
+            if profile == "debug" {
+                p = 
+                "-g0";
+            } else {
+                p = 
+                "-g3";
+            }
+
+            let e: &str;
+            if eth == "true" {
+                e = "HAL_ETH_MODULE_ENABLED";
+            } else {
+                e = "OFF";
+            }
+
+
+            let cmake_exit_status = process::Command::new("cmake")
+                .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabi.cmake"))
+                .arg("-S")
+                .arg(cmake_path)
+                .arg("-B")
+                .arg(format!("{cmake_path}/build"))
+                .arg(format!("-D{t}=ON"))
+                .arg(format!("-DPROFILE={p}"))
+                .arg(format!("-D{e}=ON"))
+                .spawn()
+                .expect("Could not run cmake. Is it installed?")
+                .wait()
+                .unwrap();
+
+
+            let make_exit_status =process::Command::new("make")
+                .arg("-j16")
+                .arg("-C")
+                .arg(format!("{cmake_path}/build"))
+                .arg("all")
+                .spawn()
+                .expect("Could not run make. Is it installed?")
+                .wait()
+                .unwrap();
+
+
+            if cmake_exit_status.success() && make_exit_status.success() {
+                println!("\n\nBuild successful!");
+                println!("\ntarget: {}\nprofile: {}\neth:{}", target, profile, eth);
+            } else {
+                println!("Build failed!");
+            }
         }
         Some(("push", sub_matches)) => {
             println!(
