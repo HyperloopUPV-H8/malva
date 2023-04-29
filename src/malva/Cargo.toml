@@ -8,3 +8,4 @@ readme = "README.md"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
+colored = "2.0.0"

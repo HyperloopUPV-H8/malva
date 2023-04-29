@@ -6,6 +6,7 @@ use std::process::{ Stdio, Output};
 use std::io;
 use clap::{arg, Command};
 use std::process;
+use colored::Colorize;
 
 fn cli() -> Command {
     Command::new("malva")
@@ -79,21 +80,6 @@ fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child>
         .spawn()
 }
 
-
-// fn find_dir_and_change(dir: &str) -> io::Result<Output> {
-//     let find_child = process::Command::new("find") 
-//         .arg(".")
-//         .arg("-type")                  
-//         .arg("d")
-//         .arg("-name")
-//         .arg(dir)
-//         .stdout(Stdio::piped())       
-//         .spawn()                    
-//         .unwrap();
-
-//     process::Command::new("cd")
-//         .arg(Stdio::from(find_child.stdout.unwrap())) // Pipe through.
-//         .output()
 
 fn main() {
     let matches = cli().get_matches();
@@ -176,10 +162,10 @@ fn main() {
 
 
             if cmake_exit_status.success() && make_exit_status.success() {
-                println!("\n\nBuild successful!");
+                println!("\n\n{}", "Build succeeded!".green().bold());
                 println!("\ntarget: {}\nprofile: {}\neth:{}", target, profile, eth);
             } else {
-                println!("Build failed!");
+                println!("\n\n{}", "Build failed!".red().bold());
             }
         }
         Some(("push", sub_matches)) => {
