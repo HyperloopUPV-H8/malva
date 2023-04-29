@@ -1,5 +1,5 @@
 Package: malva 
-Version: 0.1
+Version: 0.4
 Architecture: amd64 
 Maintainer: Alejandro Gonzalvo <alejandrogonhid@gmail.com>
 Description: Firmware package for Hyperloop UPV 
