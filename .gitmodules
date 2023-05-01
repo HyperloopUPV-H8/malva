@@ -1,6 +1,6 @@
 [submodule "malva_0.4-1_amd64/opt/malva/template-project"]
-	path = malva_0.4-1_amd64/opt/malva/template-project
+	path = malva_0.5-1_amd64/opt/malva/template-project
 	url = git@github.com:HyperloopUPV-H8/template-project.git
 [submodule "malva_0.4-1_amd64/opt/malva/ST-LIB"]
-	path = malva_0.4-1_amd64/opt/malva/ST-LIB
+	path = malva_0.5-1_amd64/opt/malva/ST-LIB
 	url = git@github.com:HyperloopUPV-H8/ST-LIB.git
