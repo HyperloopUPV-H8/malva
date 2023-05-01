@@ -4,7 +4,7 @@ malva is a deb package that installs and groups all the dependencies needed for 
 
 ### Dependencies
 ```
-sudo apt install git curl
+sudo apt install git curl stlink-tools
 ```
 ### How to install
 ```
