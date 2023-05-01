@@ -1,10 +1,11 @@
 # :monkey_face:malva:monkey_face:
 malva is a deb package that installs and groups all the dependencies needed for stm32 development on VSCode
 
+### Minimum version Ubuntu 20.04
 
 ### Dependencies
 ```
-sudo apt install git curl
+sudo apt install git curl stlink-tools
 ```
 ### How to install
 ```
