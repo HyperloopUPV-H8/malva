@@ -1,11 +1,6 @@
 #!/bin/bash
 
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gcc /usr/local/bin/
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-g++ /usr/local/bin/
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-objcopy /usr/local/bin/
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-size /usr/local/bin/
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gdb /usr/local/bin/
-sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm /usr/local/bin/
+sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-* /usr/local/bin/
 
 cat /opt/malva/ascii.txt
 TEXT="Welcome to Hyperloop UPV firmware team. Happy coding!"
