@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::path::{Path, PathBuf};
 use std::fs::metadata;
 use std::process::{self, exit};
@@ -6,9 +7,13 @@ use std::io;
 use clap::{arg, Command, ArgMatches, Error};
 use colored::Colorize;
 
+fn err_println(msg: &str) {
+    eprintln!("{} {}", "Error:".red().bold(), msg);
+    exit(1)
+}
 fn cli() -> Command {
     Command::new("malva")
-        .about("Development framework for stm32 firmware development on vscode")
+        .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.6.0".yellow().bold()))
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
@@ -112,13 +117,22 @@ fn new_command(sub_matches: &ArgMatches) {
     find_and_replace("template-project", &project_name, project_path.as_path()).expect("Could not replace template project");
 }
 
+fn get_match<'a>(sub_matches: &'a ArgMatches, name: &str) -> &'a String {
+    match sub_matches.get_one::<String>(name) {
+        Some(res) => res,
+        None => {
+            eprintln!("{} Wrong type for {} argument. See {}", "Error:".red().bold(), name.yellow().bold(), "malva build --help".yellow().bold());
+            exit(1)
+        }
+    }
+}
 fn build_command(sub_matches: &ArgMatches) {
-    let cmake_path = sub_matches.get_one::<String>("PATH").expect("required");
+    let cmake_path = to_str(check_path(get_match(sub_matches, "PATH")));
 
-    let target = sub_matches.get_one::<String>("target").map(|s| s.as_str()).expect("Defaulted in clap");
-    let profile = sub_matches.get_one::<String>("profile").map(|s| s.as_str()).expect("Defaulted in clap");
-    let eth = sub_matches.get_one::<String>("eth").map(|s| s.as_str()).expect("Defaulted in clap");
-    let flash: &str = sub_matches.get_one::<String>("flash").map(|s | s.as_str()).expect("Defaulted in clap");
+    let target = get_match(sub_matches, "target");
+    let profile = get_match(sub_matches, "profile");
+    let eth = get_match(sub_matches, "eth");
+    let flash = get_match(sub_matches, "flash");
     
     let t: &str;
     if target == "nucleo" {
@@ -144,7 +158,7 @@ fn build_command(sub_matches: &ArgMatches) {
     }
 
 
-    let cmake_exit_status = process::Command::new("cmake")
+    let cmake_command = process::Command::new("cmake")
         .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabi.cmake"))
         .arg("-S")
         .arg(cmake_path)
@@ -152,11 +166,15 @@ fn build_command(sub_matches: &ArgMatches) {
         .arg(format!("{cmake_path}/build"))
         .arg(format!("-D{t}=ON"))
         .arg(format!("-DPROFILE={p}"))
-        .arg(format!("-D{e}=ON"))
-        .spawn()
-        .expect("Could not run cmake. Is it installed?")
-        .wait()
-        .unwrap();
+        .arg(format!("-D{e}=ON"));
+
+        match cmake_command.spawn() {
+            Ok(child) => child,
+            Err(_err) => {
+                eprintln!("{} Could not run cmake. Is it installed?", "Error: ".red().bold());
+                exit(1);
+            }
+        }.wait();
 
 
     let make_exit_status = process::Command::new("make")
@@ -212,7 +230,7 @@ fn check_path(path: &str) -> &Path {
     match metadata(path) {
         Ok(res) => Path::new(path),
         Err(err) => {
-            println!("{}: {}", "Path does not exist".red().bold(), path);
+            eprintln!("{}: {} path does not exist.", "Error: ".red().bold(), path);
             exit(1)
         }
     }
@@ -222,7 +240,7 @@ fn get_file_or_dir(path: &Path) -> &str {
     match path.file_name() {
         Some(res) => to_str(path),
         None => {
-            println!("{}", "Do not end file in ..".red().bold());
+            eprintln!("{}Do not end file in ..", "Error: ".red().bold());
             exit(1)
         }
     }
@@ -274,8 +292,7 @@ fn flash_command(_sub_matches: &ArgMatches, path_str: &str) {
             }
         },
         Err(err) => {
-            println!("Could not run st-flash. Is it installed? (Check st-link open source tools on Github");
-            exit(1)
+            err_println("Could not run st-flash. Is it installed? (Check apt install st-link tools)");
         }
     }
 }
@@ -295,7 +312,9 @@ fn main() {
             flash_command(sub_matches, sub_matches.get_one::<String>("BINARY").expect("required"));
         }
 
-        _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable!()
+        _ => {
+            eprintln!("{}{}{}.", "Error: ".red().bold(), "The subcommand specified is not a malva command. See ", "'malva --help'".yellow().bold());
+        }
     }
 
     // Continued program logic goes here...
