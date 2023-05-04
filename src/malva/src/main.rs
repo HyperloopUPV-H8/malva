@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::fs::metadata;
 use std::process::{self, exit};
 use std::process::{Stdio, Output, Child};
 use std::io;
-use clap::{arg, Command, ArgMatches};
+use clap::{arg, Command, ArgMatches, Error};
 use colored::Colorize;
 
 fn cli() -> Command {
@@ -20,7 +21,10 @@ fn cli() -> Command {
         .subcommand(
             Command::new("build")
                 .about("Build the project into a binary/elf file")
-                .arg(arg!(<PATH> "Path to CMakeLists.txt"))
+                .arg(
+                    arg!(<PATH> "Path to CMakeLists.txt")
+                    .default_value(".")
+                )
                .arg(
                     arg!(-t --target <TARGET>)
                         .value_parser(["nucleo", "board"])
@@ -53,7 +57,10 @@ fn cli() -> Command {
         .subcommand(
             Command::new("flash")
                 .about("flash binary to target")
-                .arg(arg!(<BINARY> "Path to the .bin file"))
+                .arg(
+                    arg!(<BINARY> "Path to the .bin file")
+                    .default_value(".")
+                )
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -169,6 +176,7 @@ fn build_command(sub_matches: &ArgMatches) {
         .unwrap()
         .to_string();
 
+
     if !cmake_exit_status.success() || !make_exit_status.success() {
         println!("\n\n{}", "Build failed!".red().bold());
         exit(1)
@@ -200,15 +208,76 @@ fn build_command(sub_matches: &ArgMatches) {
     }
 }
 
-fn flash_command(sub_matches: &ArgMatches, binary: &str) {
-     let stflash_exit_status = process::Command::new("st-flash")
+fn check_path(path: &str) -> &Path {
+    match metadata(path) {
+        Ok(res) => Path::new(path),
+        Err(err) => {
+            println!("{}: {}", "Path does not exist".red().bold(), path);
+            exit(1)
+        }
+    }
+}
+
+fn get_file_or_dir(path: &Path) -> &str {
+    match path.file_name() {
+        Some(res) => to_str(path),
+        None => {
+            println!("{}", "Do not end file in ..".red().bold());
+            exit(1)
+        }
+    }
+}
+
+fn to_str(path: &Path) -> &str {
+    match path.to_str() {
+        Some(res) => res,
+        None => {
+            println!("{}", "path exists but is not valid unicode".red().bold());
+            exit(1)
+        }
+    }
+}
+
+fn flash_command(_sub_matches: &ArgMatches, path_str: &str) {
+    let path = check_path(path_str);
+
+    let binary_path;
+    if path.is_dir() {
+        let project_name = get_file_or_dir(path);
+        let mut s = String::from(path_str);
+        s.push_str("/build/");
+        s.push_str(project_name);
+        s.push_str(".bin");
+        binary_path = check_path(s.as_str()).to_owned();
+    } else {
+        binary_path = path.to_path_buf();
+    }
+
+    let stflash_process = match process::Command::new("st-flash")
         .arg("write")
-        .arg(binary)
+        .arg(binary_path)
         .arg("0x08000000")
-        .spawn()
-        .expect("Could not run st-flash. Is it installed? (Check st-link open source tools on Github)")
-        .wait()
-        .unwrap();
+        .spawn() {
+            Ok(child) => child,
+            Err(_err) => {
+                println!("\n\nCould not run st-flash. Is it installed? (Check st-link open source tools on Github");
+                exit(1);
+            }
+        }.wait();
+    
+    match stflash_process {
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "Flash succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "Flash failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            println!("Could not run st-flash. Is it installed? (Check st-link open source tools on Github");
+            exit(1)
+        }
+    }
 }
 
 fn main() {
