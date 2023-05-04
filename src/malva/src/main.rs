@@ -1,3 +1,6 @@
+mod aux;
+use aux::{check_path, copy_dir, find_and_replace, get_file_or_dir, get_match, to_str, err_println};
+
 use std::fmt::format;
 use std::time::Instant;
 use std::path::{Path, PathBuf};
@@ -5,13 +8,11 @@ use std::fs::metadata;
 use std::process::{self, exit};
 use std::process::{Stdio, Output, Child};
 use std::io;
+use std::env::current_dir;
 use clap::{arg, Command, ArgMatches, Error};
 use colored::Colorize;
 
-fn err_println(msg: &str) {
-    eprintln!("{} {}", "Error:".red().bold(), msg);
-    exit(1)
-}
+
 fn cli() -> Command {
     Command::new("malva")
         .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.6.0".yellow().bold()))
@@ -74,29 +75,6 @@ fn cli() -> Command {
                 .about("Update to latest version (changes ST-LIB and template-project)"))
 }
 
-fn copy_dir(src: &str, dst: &Path) -> io::Result<Output> {
-    process::Command::new("cp").arg("-r").arg(src).arg(dst).output()
-}
-
-fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child> {
-
-    println!("Replacing {} with {} in {}", previous, new, path.to_str().unwrap());
-    let grep_child = process::Command::new("grep") 
-        .arg("-rl")                  
-        .arg(previous)
-        .arg(path)
-        .stdout(Stdio::piped())       
-        .spawn()                    
-        .expect("Could not find template project");
-    
-    process::Command::new("xargs")
-        .arg("sed")
-        .arg("-i")
-        .arg(format!("s/template-project/{new}/g"))
-        .stdin(Stdio::from(grep_child.stdout.unwrap())) // Pipe through.
-        .stdout(Stdio::piped())
-        .spawn()
-}
 
 
 fn new_command(sub_matches: &ArgMatches) {
@@ -118,16 +96,6 @@ fn new_command(sub_matches: &ArgMatches) {
     find_and_replace("template-project", &project_name, project_path.as_path()).expect("Could not replace template project");
 }
 
-fn get_match<'a>(sub_matches: &'a ArgMatches, name: &str) -> &'a String {
-    match sub_matches.get_one::<String>(name) {
-        Some(res) => res,
-        None => {
-            eprintln!("{} Wrong type for {} argument. See {}", "Error:".red().bold(), name.yellow().bold(), "malva build --help".yellow().bold());
-            exit(1)
-        }
-    }
-}
-
 fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatus, std::io::Error> {
     match command.spawn() {
         Ok(child) => child,
@@ -137,6 +105,7 @@ fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatu
         }
     }.wait()
 }
+
 fn build_command(sub_matches: &ArgMatches) {
     let cmake_path = to_str(check_path(get_match(sub_matches, "PATH")));
 
@@ -155,10 +124,10 @@ fn build_command(sub_matches: &ArgMatches) {
     let p: &str;
     if profile == "debug" {
         p = 
-        "-g0";
+        "-g3";
     } else {
         p = 
-        "-g3";
+        "-g0";
     }
 
     let e: &str;
@@ -211,12 +180,20 @@ fn build_command(sub_matches: &ArgMatches) {
         }
     }
 
-    let project_name = Path::new(cmake_path)
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let current_dir = current_dir().unwrap();
+    let project_name = match Path::new(cmake_path).file_name() {
+        Some(res) => match res.to_str() {
+            Some(res) => res,
+            None => {
+                eprintln!("{}: {:?} path terminates in .. ", "Error: ".red().bold(), res);
+                exit(1)
+            }
+        },
+        None => {
+            current_dir.file_name().unwrap().to_str().unwrap()
+        }
+    };
+
 
     let mut objcopy_command = process::Command::new("arm-none-eabi-objcopy");
     match run_command(objcopy_command
@@ -250,36 +227,6 @@ fn build_command(sub_matches: &ArgMatches) {
 
     if flash == "true" {
         flash_command(sub_matches, format!("{cmake_path}/build/{project_name}.bin").as_str());
-    }
-}
-
-fn check_path(path: &str) -> &Path {
-    match metadata(path) {
-        Ok(res) => Path::new(path),
-        Err(err) => {
-            eprintln!("{}: {} path does not exist.", "Error: ".red().bold(), path);
-            exit(1)
-        }
-    }
-}
-
-fn get_file_or_dir(path: &Path) -> &str {
-    match path.file_name() {
-        Some(res) => to_str(path),
-        None => {
-            eprintln!("{}Do not end file in ..", "Error: ".red().bold());
-            exit(1)
-        }
-    }
-}
-
-fn to_str(path: &Path) -> &str {
-    match path.to_str() {
-        Some(res) => res,
-        None => {
-            println!("{}", "path exists but is not valid unicode".red().bold());
-            exit(1)
-        }
     }
 }
 
