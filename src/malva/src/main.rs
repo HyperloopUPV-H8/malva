@@ -1,4 +1,5 @@
 use std::fmt::format;
+use std::time::Instant;
 use std::path::{Path, PathBuf};
 use std::fs::metadata;
 use std::process::{self, exit};
@@ -126,6 +127,16 @@ fn get_match<'a>(sub_matches: &'a ArgMatches, name: &str) -> &'a String {
         }
     }
 }
+
+fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatus, std::io::Error> {
+    match command.spawn() {
+        Ok(child) => child,
+        Err(_err) => {
+            eprintln!("{} Could not run {}. Is it installed?", "Error: ".red().bold(), command.get_program().to_str().unwrap());
+            exit(1);
+        }
+    }.wait()
+}
 fn build_command(sub_matches: &ArgMatches) {
     let cmake_path = to_str(check_path(get_match(sub_matches, "PATH")));
 
@@ -158,7 +169,8 @@ fn build_command(sub_matches: &ArgMatches) {
     }
 
 
-    let cmake_command = process::Command::new("cmake")
+    let mut cmake_command = process::Command::new("cmake");
+    match run_command(cmake_command
         .arg(format!("-DCMAKE_TOOLCHAIN_FILE=arm-none-eabi.cmake"))
         .arg("-S")
         .arg(cmake_path)
@@ -166,26 +178,38 @@ fn build_command(sub_matches: &ArgMatches) {
         .arg(format!("{cmake_path}/build"))
         .arg(format!("-D{t}=ON"))
         .arg(format!("-DPROFILE={p}"))
-        .arg(format!("-D{e}=ON"));
+        .arg(format!("-D{e}=ON"))) {
 
-        match cmake_command.spawn() {
-            Ok(child) => child,
-            Err(_err) => {
-                eprintln!("{} Could not run cmake. Is it installed?", "Error: ".red().bold());
-                exit(1);
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "Cmake succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "Cmake failed!".red().bold());
             }
-        }.wait();
+        },
+        Err(err) => {
+            err_println("Could not run cmake. Is it installed?");
+        }
+    }
 
-
-    let make_exit_status = process::Command::new("make")
+    let mut make_command = process::Command::new("make");
+    match run_command(make_command
         .arg("-j16")
         .arg("-C")
         .arg(format!("{cmake_path}/build"))
-        .arg("all")
-        .spawn()
-        .expect("Could not run make. Is it installed?")
-        .wait()
-        .unwrap();
+        .arg("all")) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("{}", "Make succeeded!".green().bold());
+            } else {
+                println!("{}", "Make failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            err_println("Could not run make. Is it installed?");
+        }
+    }
 
     let project_name = Path::new(cmake_path)
         .file_name()
@@ -194,24 +218,27 @@ fn build_command(sub_matches: &ArgMatches) {
         .unwrap()
         .to_string();
 
-
-    if !cmake_exit_status.success() || !make_exit_status.success() {
-        println!("\n\n{}", "Build failed!".red().bold());
-        exit(1)
-    }
-
-    let objcopy_exit_status = process::Command::new("arm-none-eabi-objcopy")
+    let mut objcopy_command = process::Command::new("arm-none-eabi-objcopy");
+    match run_command(objcopy_command
         .arg("-O")
         .arg("binary")
         .arg(format!("{cmake_path}/build/{project_name}.elf"))
-        .arg(format!("{cmake_path}/build/{project_name}.bin"))
-        .spawn()
-        .expect("Could not run objcopy. Is it installed?")
-        .wait()
-        .unwrap();
+        .arg(format!("{cmake_path}/build/{project_name}.bin"))) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("{}", "Objcopy succeeded!".green().bold());
+            } else {
+                println!("{}", "Objcopy failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            err_println("Could not run objcopy. Is it installed?");
+        }
+    }
 
     println!("\n\n{}", "Build succeeded!".green().bold());
-    println!("\ntarget: {}\nprofile: {}\neth:{}", target, profile, eth);
+    println!("\n{:>15}: {:<15}\n{:>15}: {:<15}\n{:>15}: {:<15}\n","Target".yellow(), target.yellow().bold(), "Profile".yellow(), profile.yellow().bold(), "Ethernet".yellow(), eth.yellow().bold());
     process::Command::new("mv")
         .arg(format!("{cmake_path}/build/compile_commands.json"))
         .arg(format!("{cmake_path}/compile_commands.json"))
@@ -298,6 +325,8 @@ fn flash_command(_sub_matches: &ArgMatches, path_str: &str) {
 }
 
 fn main() {
+    let now = Instant::now();
+
     let matches = cli().get_matches();
     match matches.subcommand() {
         Some(("new", sub_matches)) => {
@@ -317,5 +346,6 @@ fn main() {
         }
     }
 
+    println!("Elapsed time: {}", format!("{:.2?}", now.elapsed()).yellow().bold());
     // Continued program logic goes here...
 }
