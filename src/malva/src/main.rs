@@ -3,19 +3,19 @@ use aux::{check_path, copy_dir, find_and_replace, get_file_or_dir, get_match, to
 
 use std::fmt::format;
 use std::time::Instant;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, self};
 use std::fs::metadata;
-use std::process::{self, exit};
+use std::process::{self, exit, ExitCode, ExitStatus};
 use std::process::{Stdio, Output, Child};
 use std::io;
 use std::env::current_dir;
-use clap::{arg, Command, ArgMatches, Error};
+use clap::{arg, Command, ArgMatches, Error, ArgAction};
 use colored::Colorize;
 
 
 fn cli() -> Command {
     Command::new("malva")
-        .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.6.0".yellow().bold()))
+        .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.7.0".yellow().bold()))
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
@@ -23,42 +23,30 @@ fn cli() -> Command {
             Command::new("new")
                 .about("Create a new firmware repository")
                 .arg(arg!(<NAME> "Project name"))
-                .arg_required_else_help(true),
+                .arg(arg!(git: -g --git "Do not delete template project git metadata").action(ArgAction::SetTrue)),
         )
         .subcommand(
             Command::new("build")
                 .about("Build the project into a binary/elf file")
                 .arg(
-                    arg!(<PATH> "Path to CMakeLists.txt")
+                    arg!(<PATH> "Path to stm32project")
                     .default_value(".")
                 )
                .arg(
-                    arg!(-t --target <TARGET>)
-                        .value_parser(["nucleo", "board"])
-                        .num_args(0..=1)
-                        .require_equals(true)
-                        .default_value("nucleo")
+                    arg!(board: -b --board "Compile for Kenos board (LCU, BLCU...)")
+                        .action(ArgAction::SetTrue)
                 )
                 .arg(
-                    arg!(-p --profile <PROFILE>)
-                        .value_parser(["debug", "release"])
-                        .num_args(0..=1)
-                        .require_equals(true)
-                        .default_value("debug")
+                    arg!(release: -r --release "Compile without debug symbols")
+                        .action(ArgAction::SetTrue)
                 )
                 .arg(
-                    arg!(-e --eth <ETH>)
-                        .value_parser(["true", "false"])
-                        .num_args(0..=1)
-                        .require_equals(true)
-                        .default_value("true")
+                    arg!(no_eth: -n --no_eth "Compile without ethernet")
+                        .action(ArgAction::SetTrue) 
                 )
                 .arg(
-                    arg!(-f --flash <FLASH>)
-                        .value_parser(["true", "false"])
-                        .num_args(0..=1)
-                        .require_equals(true)
-                        .default_value("false")
+                    arg!(flash_afterwards: -f --flash_afterwards "Flash binary to target after building")
+                        .action(ArgAction::SetTrue) 
                 )                                                                                                     
         )
         .subcommand(
@@ -73,6 +61,14 @@ fn cli() -> Command {
         .subcommand(
             Command::new("update")
                 .about("Update to latest version (changes ST-LIB and template-project)"))
+        .subcommand(
+            Command::new("import")
+                .about("import vscode and cmake configuration to stm32 project")
+                .arg(
+                    arg!(<PATH> "Path to stm32project")
+                    .default_value(".")
+                )
+        )
 }
 
 
@@ -93,7 +89,34 @@ fn new_command(sub_matches: &ArgMatches) {
         .unwrap()
         .to_string();
 
-    find_and_replace("template-project", &project_name, project_path.as_path()).expect("Could not replace template project");
+
+    find_and_replace("template-project", &project_name, project_path.as_path());
+
+    let mut rm_command = process::Command::new("rm");
+
+    if sub_matches.get_flag("git") {
+        exit(0)
+    }
+
+    match run_command(rm_command
+        .arg("-r")
+        .arg("-f")
+        .arg(format!("{path_str}/.gitignore"))
+        .arg(format!("{path_str}/.git"))) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "git rm succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "git rm failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            err_println("Could not run rm. Is it installed?");
+        }
+    }
+
+
 }
 
 fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatus, std::io::Error> {
@@ -109,34 +132,50 @@ fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatu
 fn build_command(sub_matches: &ArgMatches) {
     let cmake_path = to_str(check_path(get_match(sub_matches, "PATH")));
 
-    let target = get_match(sub_matches, "target");
-    let profile = get_match(sub_matches, "profile");
-    let eth = get_match(sub_matches, "eth");
-    let flash = get_match(sub_matches, "flash");
-    
     let t: &str;
-    if target == "nucleo" {
-        t = "NUCLEO";
-    } else {
+    if sub_matches.get_flag("board") {
         t = "BOARD";
+    } else {
+        t = "NUCLEO";
     }
 
     let p: &str;
-    if profile == "debug" {
-        p = 
-        "-g3";
+    let o: &str;
+    if sub_matches.get_flag("release") {
+        p = "-g0";
+        o = "-O3";
     } else {
-        p = 
-        "-g0";
+        p = "-g3";
+        o = "-Og";
     }
 
     let e: &str;
-    if eth == "true" {
-        e = "HAL_ETH_MODULE_ENABLED";
-    } else {
+    if sub_matches.get_flag("no_eth") {
         e = "OFF";
+    } else {
+        e = "HAL_ETH_MODULE_ENABLED";
     }
 
+
+    let mut rm_command = process::Command::new("rm");
+    match run_command(rm_command
+        .arg("-r")
+        .arg("-f")
+        .arg(format!("{cmake_path}/build/*"))
+        .arg(format!("/opt/malva/ST-LIB/build/*"))) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "rm succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "rm failed!".red().bold());
+                exit(1);
+            }
+        },
+        Err(err) => {
+            err_println("Could not run rm. Is it installed?");
+        }
+    }
 
     let mut cmake_command = process::Command::new("cmake");
     match run_command(cmake_command
@@ -147,6 +186,7 @@ fn build_command(sub_matches: &ArgMatches) {
         .arg(format!("{cmake_path}/build"))
         .arg(format!("-D{t}=ON"))
         .arg(format!("-DPROFILE={p}"))
+        .arg(format!("-DOPTIMIZATION={o}"))
         .arg(format!("-D{e}=ON"))) {
 
         Ok(res) => {
@@ -154,6 +194,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 println!("\n\n{}", "Cmake succeeded!".green().bold());
             } else {
                 println!("\n\n{}", "Cmake failed!".red().bold());
+                exit(1);
             }
         },
         Err(err) => {
@@ -173,6 +214,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 println!("{}", "Make succeeded!".green().bold());
             } else {
                 println!("{}", "Make failed!".red().bold());
+                exit(1);
             }
         },
         Err(err) => {
@@ -207,6 +249,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 println!("{}", "Objcopy succeeded!".green().bold());
             } else {
                 println!("{}", "Objcopy failed!".red().bold());
+                exit(1);
             }
         },
         Err(err) => {
@@ -215,7 +258,7 @@ fn build_command(sub_matches: &ArgMatches) {
     }
 
     println!("\n\n{}", "Build succeeded!".green().bold());
-    println!("\n{:>15}: {:<15}\n{:>15}: {:<15}\n{:>15}: {:<15}\n","Target".yellow(), target.yellow().bold(), "Profile".yellow(), profile.yellow().bold(), "Ethernet".yellow(), eth.yellow().bold());
+    println!("\n{:>15}: {:<15}\n{:>15}: {:<5}{:<5}\n{:>15}: {:<15}\n","Target".yellow(), t.yellow().bold(), "Profile".yellow(), p.yellow().bold(), o.yellow().bold(), "Ethernet".yellow(), e.yellow().bold());
     process::Command::new("mv")
         .arg(format!("{cmake_path}/build/compile_commands.json"))
         .arg(format!("{cmake_path}/compile_commands.json"))
@@ -224,8 +267,7 @@ fn build_command(sub_matches: &ArgMatches) {
         .wait()
         .unwrap();
 
-
-    if flash == "true" {
+    if sub_matches.get_flag("flash_afterwards") {
         flash_command(sub_matches, format!("{cmake_path}/build/{project_name}.bin").as_str());
     }
 }
@@ -271,6 +313,53 @@ fn flash_command(_sub_matches: &ArgMatches, path_str: &str) {
     }
 }
 
+fn update_command(_sub_matches: &ArgMatches) {
+    
+    println!("{}", "ST-LIB: ".yellow().bold());
+    let mut git_command = process::Command::new("git");
+    match run_command(git_command.arg("-C").arg("/opt/malva/ST-LIB").arg("pull")) {
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "git pull succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "git pull failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            err_println("Could not run git. Is it installed?");
+        }
+    }
+
+    println!("{}", "\n\nTemplate project: ".yellow().bold());
+    let mut git_command = process::Command::new("git");
+    match run_command(git_command.arg("-C").arg("/opt/malva/template-project").arg("pull")) {
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "git pull succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "git pull failed!".red().bold());
+            }
+        },
+        Err(err) => {
+            err_println("Could not run git. Is it installed?");
+        }
+    }
+}
+
+fn import_command(sub_matches: &ArgMatches) {
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
+    let project_path = PathBuf::from(path_str);
+    let vscode_path = project_path.join(".vscode");
+    println!(
+        "Importing {}...",
+        project_path.to_str().unwrap()
+    );
+
+    copy_dir("/opt/malva/template-project/.vscode", &vscode_path).expect("Can't copy vscode configuration");
+    copy_dir("/opt/malva/template-project/CMakeLists.txt", project_path.as_path()).expect("Can't copy cmake configuration");
+    copy_dir("/opt/malva/template-project/arm-none-eabi.cmake", project_path.as_path()).expect("Can't copy cmake configuration");
+}
+
 fn main() {
     let now = Instant::now();
 
@@ -286,6 +375,14 @@ fn main() {
 
         Some(("flash", sub_matches)) => {
             flash_command(sub_matches, sub_matches.get_one::<String>("BINARY").expect("required"));
+        }
+
+        Some(("update", sub_matches)) => {
+            update_command(sub_matches);
+        }
+
+        Some(("import", sub_matches)) => {
+            import_command(sub_matches);
         }
 
         _ => {

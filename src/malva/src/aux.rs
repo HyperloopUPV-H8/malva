@@ -2,7 +2,7 @@ use std::fmt::format;
 use std::time::Instant;
 use std::path::{Path, PathBuf};
 use std::fs::metadata;
-use std::process::{self, exit};
+use std::process::{self, exit, ExitStatus};
 use std::process::{Stdio, Output, Child};
 use std::io;
 use clap::{arg, Command, ArgMatches, Error};
@@ -17,24 +17,55 @@ pub fn copy_dir(src: &str, dst: &Path) -> io::Result<Output> {
     process::Command::new("cp").arg("-r").arg(src).arg(dst).output()
 }
 
-pub fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Child> {
+pub fn find_and_replace(previous: &str, new: &str, path: &Path) -> () {
 
     println!("Replacing {} with {} in {}", previous, new, path.to_str().unwrap());
-    let grep_child = process::Command::new("grep") 
+    let mut grep_command = process::Command::new("grep");
+
+    let mut grep_child = match grep_command
         .arg("-rl")                  
         .arg(previous)
         .arg(path)
-        .stdout(Stdio::piped())       
-        .spawn()                    
-        .expect("Could not find template project");
+        .stdout(Stdio::piped()).spawn() {      
+        Ok(res) => res,
+        Err(err) => {
+            eprintln!("{} {}", "Error:".red().bold(), err);
+            exit(1)
+        }
+    };
+
+    match grep_child.wait() {
+        Ok(res) => res,
+        Err(err) => {
+            eprintln!("{} {}", "Error:".red().bold(), err);
+            exit(1)
+        }
+    };
     
-    process::Command::new("xargs")
+    let mut xargs_command = process::Command::new("xargs");
+
+    let mut xargs_child = match xargs_command
         .arg("sed")
         .arg("-i")
         .arg(format!("s/template-project/{new}/g"))
         .stdin(Stdio::from(grep_child.stdout.unwrap())) // Pipe through.
         .stdout(Stdio::piped())
-        .spawn()
+        .spawn() {
+
+        Ok(res) => res,
+        Err(err) => {
+            eprintln!("{} {}", "Error:".red().bold(), err);
+            exit(1)
+        }
+    };
+
+    match xargs_child.wait() {
+        Ok(_res) => (), 
+        Err(err) => {
+            eprintln!("{} {}", "Error:".red().bold(), err);
+            exit(1)
+        }
+    }
 }
 
 pub fn get_match<'a>(sub_matches: &'a ArgMatches, name: &str) -> &'a String {
