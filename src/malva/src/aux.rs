@@ -1,11 +1,9 @@
-use std::fmt::format;
-use std::time::Instant;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::fs::metadata;
-use std::process::{self, exit, ExitStatus};
-use std::process::{Stdio, Output, Child};
+use std::process::{self, exit};
+use std::process::{Stdio, Output};
 use std::io;
-use clap::{arg, Command, ArgMatches, Error};
+use clap::{ArgMatches};
 use colored::Colorize;
 
 pub fn err_println(msg: &str) {
@@ -80,8 +78,8 @@ pub fn get_match<'a>(sub_matches: &'a ArgMatches, name: &str) -> &'a String {
 
 pub fn check_path(path: &str) -> &Path {
     match metadata(path) {
-        Ok(res) => Path::new(path),
-        Err(err) => {
+        Ok(_res) => Path::new(path),
+        Err(_err) => {
             eprintln!("{}: {} path does not exist.", "Error: ".red().bold(), path);
             exit(1)
         }
@@ -90,7 +88,7 @@ pub fn check_path(path: &str) -> &Path {
 
 pub fn get_file_or_dir(path: &Path) -> &str {
     match path.file_name() {
-        Some(res) => to_str(path),
+        Some(_res) => to_str(path),
         None => {
             eprintln!("{}Do not end file in ..", "Error: ".red().bold());
             exit(1)

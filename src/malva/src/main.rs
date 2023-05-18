@@ -1,15 +1,11 @@
 mod aux;
 use aux::{check_path, copy_dir, find_and_replace, get_file_or_dir, get_match, to_str, err_println};
 
-use std::fmt::format;
 use std::time::Instant;
-use std::path::{Path, PathBuf, self};
-use std::fs::metadata;
-use std::process::{self, exit, ExitCode, ExitStatus};
-use std::process::{Stdio, Output, Child};
-use std::io;
+use std::path::{Path, PathBuf};
+use std::process::{self, exit};
 use std::env::current_dir;
-use clap::{arg, Command, ArgMatches, Error, ArgAction};
+use clap::{arg, Command, ArgMatches, ArgAction};
 use colored::Colorize;
 
 
@@ -29,7 +25,7 @@ fn cli() -> Command {
             Command::new("build")
                 .about("Build the project into a binary/elf file")
                 .arg(
-                    arg!(<PATH> "Path to stm32project")
+                    arg!([PATH] "Path to stm32project")
                     .default_value(".")
                 )
                .arg(
@@ -53,10 +49,9 @@ fn cli() -> Command {
             Command::new("flash")
                 .about("flash binary to target")
                 .arg(
-                    arg!(<BINARY> "Path to the .bin file")
+                    arg!([BINARY] "Path to the .bin file")
                     .default_value(".")
                 )
-                .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("update")
@@ -65,13 +60,63 @@ fn cli() -> Command {
             Command::new("import")
                 .about("import vscode and cmake configuration to stm32 project")
                 .arg(
-                    arg!(<PATH> "Path to stm32project")
+                    arg!([PATH] "Path to stm32project")
+                    .default_value(".")
+                )
+        )
+        .subcommand(
+            Command::new("clean")
+                .about("Clean build directory")
+                .arg(
+                    arg!([PATH] "Path to stm32project")
                     .default_value(".")
                 )
         )
 }
 
+fn clean_command(sub_matches: &ArgMatches) {
+    let cmake_path = to_str(check_path(get_match(sub_matches, "PATH")));
 
+    let mut rm_command = process::Command::new("rm");
+    match run_command(rm_command
+        .arg("-r")
+        .arg("-f")
+        .arg(format!("{cmake_path}/build/"))
+        .arg(format!("/opt/malva/ST-LIB/build/"))) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "rm succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "rm failed!".red().bold());
+                exit(1);
+            }
+        },
+        
+        Err(_err) => {
+            err_println("Could not run rm. Is it installed?");
+        }
+    }
+
+    let mut mkdir_command = process::Command::new("mkdir");
+    match run_command(mkdir_command
+        .arg(format!("{cmake_path}/build/"))
+        .arg(format!("/opt/malva/ST-LIB/build/"))) {
+
+        Ok(res) => {
+            if res.success() {
+                println!("\n\n{}", "mkdir succeeded!".green().bold());
+            } else {
+                println!("\n\n{}", "mkdir failed!".red().bold());
+                exit(1);
+            }
+        },
+        
+        Err(_err) => {
+            err_println("Could not run mkdir. Is it installed?");
+        }
+    }
+}
 
 fn new_command(sub_matches: &ArgMatches) {
     let path_str = sub_matches.get_one::<String>("NAME").expect("required");
@@ -111,7 +156,7 @@ fn new_command(sub_matches: &ArgMatches) {
                 println!("\n\n{}", "git rm failed!".red().bold());
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run rm. Is it installed?");
         }
     }
@@ -122,7 +167,7 @@ fn new_command(sub_matches: &ArgMatches) {
 fn run_command(command: &mut process::Command) -> Result<std::process::ExitStatus, std::io::Error> {
     match command.spawn() {
         Ok(child) => child,
-        Err(_err) => {
+        Err(__err) => {
             eprintln!("{} Could not run {}. Is it installed?", "Error: ".red().bold(), command.get_program().to_str().unwrap());
             exit(1);
         }
@@ -172,7 +217,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 exit(1);
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run rm. Is it installed?");
         }
     }
@@ -197,7 +242,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 exit(1);
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run cmake. Is it installed?");
         }
     }
@@ -217,7 +262,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 exit(1);
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run make. Is it installed?");
         }
     }
@@ -252,7 +297,7 @@ fn build_command(sub_matches: &ArgMatches) {
                 exit(1);
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run objcopy. Is it installed?");
         }
     }
@@ -307,7 +352,7 @@ fn flash_command(_sub_matches: &ArgMatches, path_str: &str) {
                 println!("\n\n{}", "Flash failed!".red().bold());
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run st-flash. Is it installed? (Check apt install st-link tools)");
         }
     }
@@ -325,7 +370,7 @@ fn update_command(_sub_matches: &ArgMatches) {
                 println!("\n\n{}", "git pull failed!".red().bold());
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run git. Is it installed?");
         }
     }
@@ -340,7 +385,7 @@ fn update_command(_sub_matches: &ArgMatches) {
                 println!("\n\n{}", "git pull failed!".red().bold());
             }
         },
-        Err(err) => {
+        Err(_err) => {
             err_println("Could not run git. Is it installed?");
         }
     }
@@ -383,6 +428,10 @@ fn main() {
 
         Some(("import", sub_matches)) => {
             import_command(sub_matches);
+        }
+
+        Some(("clean", sub_matches)) => {
+            clean_command(sub_matches);
         }
 
         _ => {
