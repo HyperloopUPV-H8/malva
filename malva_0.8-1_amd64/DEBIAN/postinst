@@ -1,0 +1,13 @@
+#!/bin/bash
+
+sudo ln -s /usr/share/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-* /usr/local/bin/
+sudo chmod -R 777 /opt/malva
+
+cat /opt/malva/ascii.txt
+TEXT="Welcome to Hyperloop UPV firmware team. Happy coding!"
+echo ${TEXT}
+echo ""
+echo ""
+echo ""
+echo ""
+

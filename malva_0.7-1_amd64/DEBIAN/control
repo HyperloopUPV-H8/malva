@@ -1,6 +1,0 @@
-Package: malva 
-Version: 0.7
-Architecture: amd64 
-Maintainer: Alejandro Gonzalvo <alejandrogonhid@gmail.com>
-Description: Firmware package for Hyperloop UPV 
- malva is a bundle of tools and dependencies to develop for the STM32H7 target MCU.

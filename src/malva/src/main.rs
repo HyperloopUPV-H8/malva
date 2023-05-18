@@ -11,7 +11,7 @@ use colored::Colorize;
 
 fn cli() -> Command {
     Command::new("malva")
-        .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.7.0".yellow().bold()))
+        .about(format!("\n{} - Development framework for stm32 firmware development on vscode", "malva v0.8.0".yellow().bold()))
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
